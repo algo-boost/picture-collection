@@ -21,7 +21,6 @@ def csv2coco(csv_file, coco_file, id2name=None):
     if id2name is None:
         id2name = DEFAULT_ID2NAME
     
-    # 确保 id2name 的 key 是整数
     id2name = {int(k): v for k, v in id2name.items()}
     
     name2id = {v: k for k, v in id2name.items()}

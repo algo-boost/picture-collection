@@ -205,12 +205,37 @@
             overflow: hidden;
             transition: all 0.3s;
             cursor: pointer;
+            position: relative;
         }
 
         .image-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
             border-color: #667eea;
+        }
+
+        .image-card.selected {
+            border-color: #28a745;
+            border-width: 3px;
+            box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2);
+        }
+
+        .selected-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #28a745;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
         .image-wrapper {
@@ -295,9 +320,22 @@
             padding: 20px;
             width: auto;
             max-width: 95%;
+            max-height: 95vh;
             top: 50%;
             transform: translateY(-50%);
-            text-align: center;
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .modal-image-container {
+            position: relative;
+            display: inline-block;
+            max-width: calc(100% - 350px);
+            max-height: 90vh;
+            flex-shrink: 0;
         }
 
         .modal-image {
@@ -306,6 +344,91 @@
             width: auto;
             height: auto;
             object-fit: contain;
+            display: block;
+        }
+
+        .modal-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .modal-canvas.hidden {
+            display: none;
+        }
+
+        .toggle-annotations-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            border: 2px solid rgba(102, 126, 234, 0.5);
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.3s;
+            z-index: 1001;
+        }
+
+        .toggle-annotations-btn:hover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .toggle-annotations-btn.active {
+            background: rgba(102, 126, 234, 0.9);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .modal-header-info {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .view-mode-btn {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            border: 2px solid rgba(40, 167, 69, 0.5);
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.3s;
+            z-index: 1001;
+        }
+
+        .view-mode-btn:hover {
+            background: rgba(40, 167, 69, 0.1);
+            border-color: #28a745;
+            transform: translateY(-2px);
+        }
+
+        .view-mode-btn.active {
+            background: rgba(40, 167, 69, 0.9);
+            color: white;
+            border-color: #28a745;
         }
 
         .close {
@@ -357,8 +480,12 @@
             background: rgba(255, 255, 255, 0.95);
             padding: 20px;
             border-radius: 8px;
-            margin-top: 20px;
             color: #333;
+            min-width: 300px;
+            max-width: 350px;
+            max-height: 90vh;
+            overflow-y: auto;
+            flex-shrink: 0;
         }
 
         .info-row {
@@ -386,6 +513,23 @@
         .empty-state-icon {
             font-size: 64px;
             margin-bottom: 20px;
+        }
+
+        /* 响应式设计：小屏幕时恢复垂直布局 */
+        @media (max-width: 1024px) {
+            .modal-content {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .modal-image-container {
+                max-width: 100%;
+            }
+
+            .image-info-panel {
+                max-width: 100%;
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -417,15 +561,21 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label for="sample-size">随机采样数量（可选，留空则返回所有结果）</label>
+                    <input type="number" id="sample-size" min="1" placeholder="例如: 100" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                </div>
+
                 <button class="btn btn-primary" onclick="executeQuery()">执行查询</button>
             </div>
 
             <div id="result-section" class="result-section" style="display: none;">
                 <div class="result-header">
-                    <div class="result-count" id="result-count">查询结果：0 条</div>
+                    <div class="result-count" id="result-count">查询结果：0 条 | 已选中：<span id="selected-count" style="color: #28a745; font-weight: bold;">0</span> 张</div>
                     <div class="export-buttons">
-                        <button class="btn btn-success" onclick="exportCOCO()">导出 COCO</button>
+                        <button class="btn btn-success" onclick="exportCOCO()">导出选中 COCO</button>
                         <button class="btn btn-secondary" onclick="exportCSV()">导出 CSV</button>
+                        <button class="btn btn-secondary" onclick="clearSelection()" style="background: #dc3545;">清除选中</button>
                     </div>
                 </div>
 
@@ -443,10 +593,24 @@
     <!-- 图片查看器模态框 -->
     <div id="imageModal" class="modal">
         <span class="close" onclick="closeModal()">关闭</span>
-        <button class="image-nav nav-prev" onclick="changeImage(-1)">上一张</button>
-        <button class="image-nav nav-next" onclick="changeImage(1)">下一张</button>
+        <div class="modal-header-info">
+            <span id="modalImagePosition">1 / 1</span>
+            <span style="opacity: 0.7;">|</span>
+            <span id="modalImageNameHeader"></span>
+        </div>
+        <button class="toggle-annotations-btn active" id="toggleAnnotationsBtn" onclick="toggleAnnotations()" title="切换标注框显示/隐藏">
+            <span id="toggleAnnotationsText">隐藏标注框</span>
+        </button>
+        <button class="view-mode-btn" id="viewModeBtn" onclick="toggleViewMode()" title="切换查看模式">
+            <span id="viewModeText">查看全部</span>
+        </button>
+        <button class="image-nav nav-prev" onclick="changeImage(-1)">◀ 上一张</button>
+        <button class="image-nav nav-next" onclick="changeImage(1)">下一张 ▶</button>
         <div class="modal-content">
-            <img id="modalImage" class="modal-image" src="" alt="图片">
+            <div class="modal-image-container">
+                <img id="modalImage" class="modal-image" src="" alt="图片" onload="drawAnnotations()">
+                <canvas id="annotationCanvas" class="modal-canvas"></canvas>
+            </div>
             <div class="image-info-panel">
                 <div class="info-row">
                     <span class="info-label">图片名称：</span>
@@ -468,6 +632,18 @@
                     <span class="info-label">人工检查状态：</span>
                     <span id="modalManualStatus"></span>
                 </div>
+                <div class="info-row">
+                    <span class="info-label">缺陷数量：</span>
+                    <span id="modalAnnotationCount">0</span>
+                </div>
+                <div class="info-row" style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #e0e0e0;">
+                    <span class="info-label">选中状态：</span>
+                    <span id="modalSelectedStatus" style="font-weight: bold; color: #28a745;">未选中</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">快捷键：</span>
+                    <span style="font-size: 12px; color: #666;">空格键切换选中</span>
+                </div>
             </div>
         </div>
     </div>
@@ -476,6 +652,9 @@
         let currentData = [];
         let currentTaskId = null;
         let currentImageIndex = 0;
+        let selectedImages = new Set(); // 存储选中图片的索引
+        let viewMode = 'all'; // 'all' 或 'selected'，查看全部或只查看选中的
+        let currentViewData = []; // 当前视图的数据（全部或选中的）
 
         // 设置默认时间（今天）
         function setDefaultTimes() {
@@ -531,6 +710,7 @@
             const sql = document.getElementById('sql').value.trim();
             const startTime = document.getElementById('start-time').value;
             const endTime = document.getElementById('end-time').value;
+            const sampleSize = document.getElementById('sample-size').value;
 
             if (!sql) {
                 showMessage('请输入 SQL 查询语句', 'error');
@@ -552,16 +732,23 @@
             document.getElementById('message').style.display = 'none';
 
             try {
+                const requestBody = {
+                    sql: sql,
+                    start_time: formatTimeForSQL(startTime),
+                    end_time: formatTimeForSQL(endTime)
+                };
+                
+                // 如果指定了采样数量，添加到请求中
+                if (sampleSize && sampleSize > 0) {
+                    requestBody.sample_size = parseInt(sampleSize);
+                }
+
                 const response = await fetch('/api/query', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        sql: sql,
-                        start_time: formatTimeForSQL(startTime),
-                        end_time: formatTimeForSQL(endTime)
-                    })
+                    body: JSON.stringify(requestBody)
                 });
 
                 const result = await response.json();
@@ -586,13 +773,24 @@
             const grid = document.getElementById('image-grid');
             const countDiv = document.getElementById('result-count');
             
-            countDiv.textContent = `查询结果：${count} 条`;
-
+            // 更新查询结果数量显示
+            const actualCount = count !== undefined ? count : data.length;
+            countDiv.innerHTML = `查询结果：${actualCount} 条 | 已选中：<span id="selected-count" style="color: #28a745; font-weight: bold;">0</span> 张`;
+            
+            // 清空之前的选中状态
+            selectedImages.clear();
+            viewMode = 'all'; // 重置查看模式
+            updateSelectedCount();
+            updateViewData(); // 初始化视图数据
+            
             if (data.length === 0) {
                 grid.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><p>没有找到符合条件的图片</p></div>';
             } else {
-                grid.innerHTML = data.map((item, index) => `
-                    <div class="image-card" onclick="openModal(${index})">
+                grid.innerHTML = data.map((item, index) => {
+                    const isSelected = selectedImages.has(index);
+                    return `
+                    <div class="image-card ${isSelected ? 'selected' : ''}" onclick="openModal(${index})">
+                        ${isSelected ? '<div class="selected-badge">✓</div>' : ''}
                         <div class="image-wrapper">
                             <img src="/api/image/${encodeURIComponent(item.img_name)}?path=${encodeURIComponent(item.img_path)}" 
                                  alt="${item.img_name}" 
@@ -603,17 +801,195 @@
                             <div class="image-meta">${item.c_time || ''}</div>
                         </div>
                     </div>
-                `).join('');
+                `;
+                }).join('');
             }
 
             document.getElementById('result-section').style.display = 'block';
         }
 
-        function openModal(index) {
-            currentImageIndex = index;
-            const item = currentData[index];
-            const modal = document.getElementById('imageModal');
+        function updateSelectedCount() {
+            const count = selectedImages.size;
+            document.getElementById('selected-count').textContent = count;
+        }
+
+        function toggleImageSelection(index) {
+            if (selectedImages.has(index)) {
+                selectedImages.delete(index);
+                // 如果当前在查看选中模式，且这是最后一张选中的图片，切换到查看全部模式
+                if (viewMode === 'selected' && selectedImages.size === 0) {
+                    viewMode = 'all';
+                    const btn = document.getElementById('viewModeBtn');
+                    if (btn) {
+                        btn.classList.remove('active');
+                        document.getElementById('viewModeText').textContent = '查看全部';
+                    }
+                    updateViewData();
+                    updateModalPosition();
+                }
+            } else {
+                selectedImages.add(index);
+            }
+            updateSelectedCount();
+            updateImageCard(index);
+            updateModalSelectionStatus();
+            updateViewData();
+            updateModalPosition();
+        }
+
+        function updateImageCard(index) {
+            const cards = document.querySelectorAll('.image-card');
+            if (cards[index]) {
+                const isSelected = selectedImages.has(index);
+                if (isSelected) {
+                    cards[index].classList.add('selected');
+                    if (!cards[index].querySelector('.selected-badge')) {
+                        const badge = document.createElement('div');
+                        badge.className = 'selected-badge';
+                        badge.textContent = '✓';
+                        cards[index].appendChild(badge);
+                    }
+                } else {
+                    cards[index].classList.remove('selected');
+                    const badge = cards[index].querySelector('.selected-badge');
+                    if (badge) {
+                        badge.remove();
+                    }
+                }
+            }
+        }
+
+        function updateModalSelectionStatus() {
+            const statusEl = document.getElementById('modalSelectedStatus');
+            if (statusEl) {
+                const isSelected = selectedImages.has(currentImageIndex);
+                if (isSelected) {
+                    statusEl.textContent = '已选中';
+                    statusEl.style.color = '#28a745';
+                } else {
+                    statusEl.textContent = '未选中';
+                    statusEl.style.color = '#666';
+                }
+            }
+        }
+
+        function clearSelection() {
+            selectedImages.clear();
+            updateSelectedCount();
+            // 更新所有图片卡片
+            const cards = document.querySelectorAll('.image-card');
+            cards.forEach((card, index) => {
+                card.classList.remove('selected');
+                const badge = card.querySelector('.selected-badge');
+                if (badge) {
+                    badge.remove();
+                }
+            });
+            
+            // 如果当前在查看选中模式，切换回查看全部模式
+            if (viewMode === 'selected') {
+                viewMode = 'all';
+                const btn = document.getElementById('viewModeBtn');
+                if (btn) {
+                    btn.classList.remove('active');
+                    document.getElementById('viewModeText').textContent = '查看全部';
+                }
+            }
+            
+            updateViewData();
+            updateModalPosition();
+            updateModalSelectionStatus();
+        }
+
+        let currentAnnotations = [];
+
+        function getCurrentViewData() {
+            if (viewMode === 'selected') {
+                // 只返回选中的图片
+                return currentData.filter((item, index) => selectedImages.has(index));
+            }
+            return currentData;
+        }
+
+        function getRealIndexFromViewIndex(viewIndex) {
+            // 将视图索引转换为真实索引
+            if (viewMode === 'selected') {
+                const selectedArray = Array.from(selectedImages).sort((a, b) => a - b);
+                return selectedArray[viewIndex];
+            }
+            return viewIndex;
+        }
+
+        function getViewIndexFromRealIndex(realIndex) {
+            // 将真实索引转换为视图索引
+            if (viewMode === 'selected') {
+                const selectedArray = Array.from(selectedImages).sort((a, b) => a - b);
+                return selectedArray.indexOf(realIndex);
+            }
+            return realIndex;
+        }
+
+        function updateViewData() {
+            currentViewData = getCurrentViewData();
+            updateModalPosition();
+        }
+
+        function toggleViewMode() {
+            if (selectedImages.size === 0) {
+                showMessage('请先选择要查看的图片', 'error');
+                return;
+            }
+            
+            viewMode = viewMode === 'all' ? 'selected' : 'all';
+            const btn = document.getElementById('viewModeBtn');
+            const btnText = document.getElementById('viewModeText');
+            
+            if (viewMode === 'selected') {
+                btn.classList.add('active');
+                btnText.textContent = '查看选中';
+                // 如果当前图片未被选中，切换到第一个选中的图片
+                if (!selectedImages.has(currentImageIndex)) {
+                    const selectedArray = Array.from(selectedImages).sort((a, b) => a - b);
+                    if (selectedArray.length > 0) {
+                        currentImageIndex = selectedArray[0];
+                    }
+                }
+            } else {
+                btn.classList.remove('active');
+                btnText.textContent = '查看全部';
+            }
+            
+            updateViewData();
+            updateModalPosition();
+            updateModalImageInfo();
+        }
+
+        function updateModalPosition() {
+            const positionEl = document.getElementById('modalImagePosition');
+            if (positionEl) {
+                const viewIndex = getViewIndexFromRealIndex(currentImageIndex);
+                const totalCount = currentViewData.length;
+                const realPosition = currentImageIndex + 1;
+                const totalRealCount = currentData.length;
+                
+                if (viewMode === 'selected') {
+                    positionEl.textContent = `${viewIndex + 1} / ${totalCount} (选中)`;
+                } else {
+                    positionEl.textContent = `${realPosition} / ${totalRealCount}`;
+                }
+            }
+        }
+
+        function updateModalImageInfo() {
+            const item = currentData[currentImageIndex];
+            if (!item) return;
+            
             const modalImage = document.getElementById('modalImage');
+            const imageNameHeader = document.getElementById('modalImageNameHeader');
+            
+            if (imageNameHeader) {
+                imageNameHeader.textContent = item.img_name || '';
+            }
             
             modalImage.src = `/api/image/${encodeURIComponent(item.img_name)}?path=${encodeURIComponent(item.img_path)}`;
             document.getElementById('modalImageName').textContent = item.img_name || '';
@@ -622,25 +998,221 @@
             document.getElementById('modalDetectionStatus').textContent = item.detection_result_status || '';
             document.getElementById('modalManualStatus').textContent = item.manual_check_status || '';
             
+            // 保存当前图片的标注信息
+            currentAnnotations = item.annotations || [];
+            document.getElementById('modalAnnotationCount').textContent = currentAnnotations.length || 0;
+            
+            // 更新选中状态显示
+            updateModalSelectionStatus();
+            
+            // 如果图片已经加载完成，立即绘制标注框
+            if (modalImage.complete && modalImage.naturalWidth > 0) {
+                setTimeout(drawAnnotations, 100);
+            }
+        }
+
+        function openModal(index) {
+            currentImageIndex = index;
+            updateViewData();
+            
+            const modal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modalImage');
+            
+            // 更新查看模式按钮状态
+            const btn = document.getElementById('viewModeBtn');
+            if (btn) {
+                if (viewMode === 'selected') {
+                    btn.classList.add('active');
+                    document.getElementById('viewModeText').textContent = '查看选中';
+                } else {
+                    btn.classList.remove('active');
+                    document.getElementById('viewModeText').textContent = '查看全部';
+                }
+            }
+            
+            // 清空canvas
+            const canvas = document.getElementById('annotationCanvas');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // 确保canvas初始状态与按钮状态一致
+                if (annotationsVisible) {
+                    canvas.classList.remove('hidden');
+                } else {
+                    canvas.classList.add('hidden');
+                }
+            }
+            
+            updateModalImageInfo();
+            updateModalPosition();
+            
             modal.style.display = 'block';
+            
+            // 如果图片已经加载完成，立即绘制标注框
+            if (modalImage.complete && modalImage.naturalWidth > 0) {
+                setTimeout(drawAnnotations, 100);
+            }
+        }
+
+        function drawAnnotations() {
+            const canvas = document.getElementById('annotationCanvas');
+            const img = document.getElementById('modalImage');
+            
+            if (!canvas || !img || currentAnnotations.length === 0) {
+                // 清空canvas
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+                return;
+            }
+
+            // 如果标注框被隐藏，不绘制
+            if (!annotationsVisible) {
+                return;
+            }
+
+            // 等待图片加载完成
+            if (!img.complete || img.naturalWidth === 0) {
+                // 如果图片还没加载完成，等待加载
+                img.onload = function() {
+                    setTimeout(drawAnnotations, 100);
+                };
+                return;
+            }
+
+            // 使用requestAnimationFrame确保DOM已更新
+            requestAnimationFrame(() => {
+                // 设置canvas尺寸与图片显示尺寸一致
+                const rect = img.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                canvas.style.width = rect.width + 'px';
+                canvas.style.height = rect.height + 'px';
+
+                const ctx = canvas.getContext('2d');
+                const imgNaturalWidth = img.naturalWidth;
+                const imgNaturalHeight = img.naturalHeight;
+                const scaleX = rect.width / imgNaturalWidth;
+                const scaleY = rect.height / imgNaturalHeight;
+
+            // 定义不同类别的颜色
+            const categoryColors = {
+                '划伤': '#FF0000',
+                '压痕': '#00FF00',
+                '吊紧': '#0000FF',
+                '异物外漏': '#FFFF00',
+                '折痕': '#FF00FF',
+                '抛线': '#00FFFF',
+                '拼接间隙': '#FFA500',
+                '水渍': '#800080',
+                '烫伤': '#FFC0CB',
+                '破损': '#A52A2A',
+                '碰伤': '#808080',
+                '红标签': '#FF0000',
+                '线头': '#008000',
+                '脏污': '#000000',
+                '褶皱(T型)': '#800000',
+                '褶皱（重度）': '#8B0000',
+                '重跳针': '#4B0082',
+                '其他': '#808080'
+            };
+
+            // 绘制每个标注框
+            currentAnnotations.forEach(ann => {
+                const bbox = ann.bbox; // [x, y, w, h]
+                if (!bbox || bbox.length !== 4) return;
+
+                const [x, y, w, h] = bbox;
+                
+                // 计算在canvas上的坐标
+                const canvasX = x * scaleX;
+                const canvasY = y * scaleY;
+                const canvasW = w * scaleX;
+                const canvasH = h * scaleY;
+
+                // 获取类别颜色
+                const category = ann.category || '其他';
+                const color = categoryColors[category] || '#FF0000';
+
+                // 绘制矩形框
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(canvasX, canvasY, canvasW, canvasH);
+
+                // 绘制标签背景
+                const labelText = `${category}${ann.score ? ' (' + (ann.score * 100).toFixed(1) + '%)' : ''}`;
+                ctx.font = '14px Arial';
+                const textMetrics = ctx.measureText(labelText);
+                const textWidth = textMetrics.width;
+                const textHeight = 20;
+
+                ctx.fillStyle = color;
+                ctx.fillRect(canvasX, canvasY - textHeight, textWidth + 8, textHeight);
+
+                // 绘制标签文字
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillText(labelText, canvasX + 4, canvasY - 5);
+            });
+            });
         }
 
         function closeModal() {
             document.getElementById('imageModal').style.display = 'none';
         }
 
+        let annotationsVisible = true;
+
+        function toggleAnnotations() {
+            annotationsVisible = !annotationsVisible;
+            const canvas = document.getElementById('annotationCanvas');
+            const btn = document.getElementById('toggleAnnotationsBtn');
+            const btnText = document.getElementById('toggleAnnotationsText');
+            
+            if (canvas) {
+                if (annotationsVisible) {
+                    canvas.classList.remove('hidden');
+                    btn.classList.add('active');
+                    btnText.textContent = '隐藏标注框';
+                    // 重新绘制标注框
+                    drawAnnotations();
+                } else {
+                    canvas.classList.add('hidden');
+                    btn.classList.remove('active');
+                    btnText.textContent = '显示标注框';
+                }
+            }
+        }
+
         function changeImage(direction) {
-            if (currentData.length === 0) return;
+            if (currentViewData.length === 0) return;
             
-            currentImageIndex += direction;
+            // 获取当前视图索引
+            let viewIndex = getViewIndexFromRealIndex(currentImageIndex);
             
-            if (currentImageIndex < 0) {
-                currentImageIndex = currentData.length - 1;
-            } else if (currentImageIndex >= currentData.length) {
-                currentImageIndex = 0;
+            // 在视图范围内移动
+            viewIndex += direction;
+            
+            if (viewIndex < 0) {
+                viewIndex = currentViewData.length - 1;
+            } else if (viewIndex >= currentViewData.length) {
+                viewIndex = 0;
             }
             
-            openModal(currentImageIndex);
+            // 转换为真实索引
+            currentImageIndex = getRealIndexFromViewIndex(viewIndex);
+            
+            // 清空canvas
+            const canvas = document.getElementById('annotationCanvas');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            // 更新图片信息
+            updateModalImageInfo();
+            updateModalPosition();
+            updateModalSelectionStatus();
         }
 
         // 点击模态框外部关闭
@@ -661,7 +1233,19 @@
                     changeImage(-1);
                 } else if (event.key === 'ArrowRight') {
                     changeImage(1);
+                } else if (event.key === ' ' || event.key === 'Spacebar') {
+                    // 空格键切换选中状态
+                    event.preventDefault();
+                    toggleImageSelection(currentImageIndex);
                 }
+            }
+        });
+
+        // 窗口大小变化时重新绘制标注框
+        window.addEventListener('resize', function() {
+            const modal = document.getElementById('imageModal');
+            if (modal.style.display === 'block') {
+                setTimeout(drawAnnotations, 100);
             }
         });
 
@@ -670,7 +1254,46 @@
                 showMessage('请先执行查询', 'error');
                 return;
             }
-            window.location.href = `/api/export/${currentTaskId}`;
+            
+            if (selectedImages.size === 0) {
+                showMessage('请先选择要导出的图片（在查看器中按空格键选择）', 'error');
+                return;
+            }
+            
+            // 将选中的索引数组发送到后端
+            const selectedIndices = Array.from(selectedImages).sort((a, b) => a - b);
+            
+            // 使用POST请求发送选中的图片索引
+            fetch(`/api/export/${currentTaskId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    selected_indices: selectedIndices
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                }
+                return response.json().then(err => Promise.reject(err));
+            })
+            .then(blob => {
+                // 创建下载链接
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `coco_export_${currentTaskId}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                showMessage(`成功导出 ${selectedIndices.length} 张图片的COCO数据`, 'success');
+            })
+            .catch(error => {
+                showMessage('导出失败：' + (error.error || error.message || '未知错误'), 'error');
+            });
         }
 
         function exportCSV() {

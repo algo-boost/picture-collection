@@ -218,9 +218,30 @@
                     <div class="section-title">图片路径配置</div>
                     
                     <div class="form-group">
+                        <label for="img_path_mode">图片路径处理方式</label>
+                        <select id="img_path_mode" name="img_path_mode" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;" onchange="togglePathFields()">
+                            <option value="full_path">使用完整路径（数据库字段直接包含完整路径）</option>
+                            <option value="concat">拼接方式（基础路径 + 数据库字段）</option>
+                        </select>
+                        <div class="help-text">选择图片路径的处理方式</div>
+                    </div>
+
+                    <div class="form-group" id="img_full_path_field_group">
+                        <label for="img_full_path_field">完整路径字段名</label>
+                        <input type="text" id="img_full_path_field" name="img_full_path_field" placeholder="local_pic_url">
+                        <div class="help-text">数据库中存储完整路径的字段名（例如：local_pic_url）</div>
+                    </div>
+
+                    <div class="form-group" id="img_base_path_group">
                         <label for="img_base_path">图片基础路径</label>
-                        <input type="text" id="img_base_path" name="img_base_path" placeholder="E:/path/to/images/" required>
-                        <div class="help-text">图片文件的根目录路径，必须以 / 结尾</div>
+                        <input type="text" id="img_base_path" name="img_base_path" placeholder="E:/path/to/images/">
+                        <div class="help-text">图片文件的根目录路径，必须以 / 或 \ 结尾</div>
+                    </div>
+
+                    <div class="form-group" id="img_path_field_group">
+                        <label for="img_path_field">路径字段名</label>
+                        <input type="text" id="img_path_field" name="img_path_field" placeholder="origin_object_key">
+                        <div class="help-text">数据库中存储相对路径的字段名（例如：origin_object_key）</div>
                     </div>
                 </div>
 
@@ -268,13 +289,19 @@
                     document.getElementById('db_user').value = config.db_user || '';
                     document.getElementById('db_password').value = config.db_password || '';
                     document.getElementById('db_database').value = config.db_database || '';
+                    document.getElementById('img_path_mode').value = config.img_path_mode || 'concat';
                     document.getElementById('img_base_path').value = config.img_base_path || '';
+                    document.getElementById('img_path_field').value = config.img_path_field || 'origin_object_key';
+                    document.getElementById('img_full_path_field').value = config.img_full_path_field || 'local_pic_url';
                     document.getElementById('default_sql').value = config.default_sql || '';
                     
                     // 加载 id2name 配置
                     if (config.id2name) {
                         document.getElementById('id2name').value = JSON.stringify(config.id2name, null, 2);
                     }
+                    
+                    // 更新字段显示状态
+                    togglePathFields();
                 }
             } catch (error) {
                 showMessage('加载配置失败：' + error.message, 'error');
@@ -300,19 +327,27 @@
                 return;
             }
             
+            const img_path_mode = formData.get('img_path_mode');
             const config = {
                 db_host: formData.get('db_host'),
                 db_user: formData.get('db_user'),
                 db_password: formData.get('db_password'),
                 db_database: formData.get('db_database'),
-                img_base_path: formData.get('img_base_path'),
+                img_path_mode: img_path_mode,
                 default_sql: formData.get('default_sql'),
                 id2name: id2name
             };
 
-            // 验证图片路径
-            if (config.img_base_path && !config.img_base_path.endsWith('/')) {
-                config.img_base_path += '/';
+            // 根据路径模式添加相应配置
+            if (img_path_mode === 'full_path') {
+                config.img_full_path_field = formData.get('img_full_path_field') || 'local_pic_url';
+            } else if (img_path_mode === 'concat') {
+                config.img_base_path = formData.get('img_base_path') || '';
+                config.img_path_field = formData.get('img_path_field') || 'origin_object_key';
+                // 验证图片路径
+                if (config.img_base_path && !config.img_base_path.endsWith('/') && !config.img_base_path.endsWith('\\')) {
+                    config.img_base_path += '/';
+                }
             }
 
             showLoading(true);
@@ -394,6 +429,28 @@
 
         function showLoading(show) {
             document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // 切换路径字段显示
+        function togglePathFields() {
+            const mode = document.getElementById('img_path_mode').value;
+            const fullPathGroup = document.getElementById('img_full_path_field_group');
+            const basePathGroup = document.getElementById('img_base_path_group');
+            const pathFieldGroup = document.getElementById('img_path_field_group');
+
+            if (mode === 'full_path') {
+                fullPathGroup.style.display = 'block';
+                basePathGroup.style.display = 'none';
+                pathFieldGroup.style.display = 'none';
+                document.getElementById('img_base_path').removeAttribute('required');
+                document.getElementById('img_path_field').removeAttribute('required');
+            } else {
+                fullPathGroup.style.display = 'none';
+                basePathGroup.style.display = 'block';
+                pathFieldGroup.style.display = 'block';
+                document.getElementById('img_base_path').setAttribute('required', 'required');
+                document.getElementById('img_path_field').removeAttribute('required');
+            }
         }
 
         // 页面加载时加载配置
